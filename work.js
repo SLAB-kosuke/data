@@ -1,7 +1,7 @@
-import { db, doc, setDoc, getDoc, updateDoc } from "./firebase.js";
+import { db, doc, setDoc, getDoc } from "./firebase.js";
 
 /* =========================
-   状態管理
+   状態
 ========================= */
 let cards = [];
 let currentMachine = "M-1";
@@ -15,8 +15,6 @@ const addCardBtn = document.getElementById("addCardBtn");
 const listBtn = document.getElementById("listBtn");
 
 const machineInput = document.getElementById("machine");
-const operatorInput = document.getElementById("operator");
-const jigInput = document.getElementById("jig");
 
 const modal = document.getElementById("machineModal");
 const modalCurrent = document.getElementById("modalCurrentMachine");
@@ -34,41 +32,30 @@ function getDocId() {
 }
 
 /* =========================
-   Firestore 保存
+   Firestore 保存（上書き型）
 ========================= */
-async function saveStart(cardData) {
+async function saveAll() {
   const id = getDocId();
   const ref = doc(db, "molds", id);
 
-  const snap = await getDoc(ref);
-
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      partNo: document.getElementById("partNo").textContent,
-      serial: document.getElementById("serial").textContent,
-      operator: operatorInput.value,
-      machine: currentMachine,
-      jig: jigInput.value,
-      status: "working",
-      processes: []
-    });
-  }
-
-  const data = (await getDoc(ref)).data();
-  data.processes.push(cardData);
-
-  await setDoc(ref, data);
-}
-
-async function finishProcess(index) {
-  const id = getDocId();
-  const ref = doc(db, "molds", id);
-
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return;
-
-  const data = snap.data();
-  data.processes[index].endTime = new Date().toISOString();
+  const data = {
+    partNo: document.getElementById("partNo").textContent,
+    serial: document.getElementById("serial").textContent,
+    operator: document.getElementById("operator").value,
+    machine: currentMachine,
+    jig: document.getElementById("jig").value,
+    processes: cards.map((card, i) => {
+      return {
+        index: i,
+        machine: currentMachine,
+        process: card.querySelector(".process-select").value,
+        before: card.querySelector(".before-size").value,
+        target: card.querySelector(".target-size").value,
+        amount: card.querySelector(".amount").value,
+        after: card.querySelector(".after-size").value
+      };
+    })
+  };
 
   await setDoc(ref, data);
 }
@@ -76,7 +63,7 @@ async function finishProcess(index) {
 /* =========================
    カード生成
 ========================= */
-function createCard(index) {
+function createCard(index, data = {}) {
   const card = document.createElement("section");
   card.className = "card";
   card.dataset.index = index;
@@ -123,20 +110,18 @@ function createCard(index) {
     </div>
   `;
 
-  attachCardEvents(card);
+  attachEvents(card);
+
   return card;
 }
 
 /* =========================
-   カードイベント
+   イベント
 ========================= */
-function attachCardEvents(card) {
+function attachEvents(card) {
   const amount = card.querySelector(".amount");
   const target = card.querySelector(".target-size");
   const after = card.querySelector(".after-size");
-
-  amount.addEventListener("input", calc);
-  target.addEventListener("input", calc);
 
   function calc() {
     const t = parseFloat(target.value || 0);
@@ -144,25 +129,17 @@ function attachCardEvents(card) {
     after.value = (t + a).toFixed(3);
   }
 
-  /* 開始 */
-  card.querySelector(".start-btn").addEventListener("click", async () => {
-    const data = {
-      id: Date.now(),
-      machine: currentMachine,
-      process: card.querySelector(".process-select").value,
-      before: card.querySelector(".before-size").value,
-      target: card.querySelector(".target-size").value,
-      amount: card.querySelector(".amount").value,
-      after: card.querySelector(".after-size").value,
-      startTime: new Date().toISOString()
-    };
+  amount.addEventListener("input", calc);
+  target.addEventListener("input", calc);
 
-    await saveStart(data);
+  card.querySelector(".start-btn").addEventListener("click", async () => {
+    await saveAll();
+    alert("保存しました（開始）");
   });
 
-  /* 終了 */
   card.querySelector(".end-btn").addEventListener("click", async () => {
-    await finishProcess(card.dataset.index);
+    await saveAll();
+    alert("更新しました（終了）");
   });
 }
 
@@ -173,18 +150,15 @@ function addCard() {
   const card = createCard(cards.length);
   cards.push(card);
   cardContainer.appendChild(card);
-  scrollToCard(cards.length - 1);
+  scroll(cards.length - 1);
 }
 
 /* =========================
    スクロール
 ========================= */
-function scrollToCard(index) {
-  const width = cardContainer.clientWidth;
-  cardContainer.scrollTo({
-    left: width * index,
-    behavior: "smooth"
-  });
+function scroll(index) {
+  const w = cardContainer.clientWidth;
+  cardContainer.scrollTo({ left: w * index, behavior: "smooth" });
 }
 
 /* =========================
@@ -214,29 +188,25 @@ confirmBtn.addEventListener("click", () => {
   modal.classList.add("hidden");
 
   addCard();
-  updateMachineLabel();
+  updateLabels();
 });
 
-function updateMachineLabel() {
+function updateLabels() {
   const last = cards[cards.length - 1];
   if (!last) return;
-
   last.querySelector(".card-machine").textContent = currentMachine;
 }
 
 /* =========================
    UI操作
 ========================= */
-addCardBtn.addEventListener("click", addCard);
+document.getElementById("addCardBtn").addEventListener("click", addCard);
 
-listBtn.addEventListener("click", () => {
-  const target = prompt("カード番号");
-  const index = parseInt(target);
-
-  if (isNaN(index)) return;
-  if (index < 0 || index >= cards.length) return;
-
-  scrollToCard(index);
+document.getElementById("listBtn").addEventListener("click", () => {
+  const i = parseInt(prompt("カード番号"));
+  if (isNaN(i)) return;
+  if (i < 0 || i >= cards.length) return;
+  scroll(i);
 });
 
 /* =========================
