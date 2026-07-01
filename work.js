@@ -1,7 +1,15 @@
+import { db, doc, setDoc, getDoc, updateDoc } from "./firebase.js";
+
+/* =========================
+   状態管理
+========================= */
 let cards = [];
 let currentMachine = "M-1";
 let tempMachine = null;
 
+/* =========================
+   DOM
+========================= */
 const cardContainer = document.getElementById("cardContainer");
 const addCardBtn = document.getElementById("addCardBtn");
 const listBtn = document.getElementById("listBtn");
@@ -17,7 +25,56 @@ const cancelBtn = document.getElementById("cancelMachineChange");
 const confirmBtn = document.getElementById("confirmMachineChange");
 
 /* =========================
-   初期カード生成
+   Firestore ID
+========================= */
+function getDocId() {
+  const partNo = document.getElementById("partNo").textContent || "UNKNOWN";
+  const serial = document.getElementById("serial").textContent || "000";
+  return `${partNo}_${serial}`;
+}
+
+/* =========================
+   Firestore 保存
+========================= */
+async function saveStart(cardData) {
+  const id = getDocId();
+  const ref = doc(db, "molds", id);
+
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      partNo: document.getElementById("partNo").textContent,
+      serial: document.getElementById("serial").textContent,
+      operator: operatorInput.value,
+      machine: currentMachine,
+      jig: jigInput.value,
+      status: "working",
+      processes: []
+    });
+  }
+
+  const data = (await getDoc(ref)).data();
+  data.processes.push(cardData);
+
+  await setDoc(ref, data);
+}
+
+async function finishProcess(index) {
+  const id = getDocId();
+  const ref = doc(db, "molds", id);
+
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const data = snap.data();
+  data.processes[index].endTime = new Date().toISOString();
+
+  await setDoc(ref, data);
+}
+
+/* =========================
+   カード生成
 ========================= */
 function createCard(index) {
   const card = document.createElement("section");
@@ -78,16 +135,34 @@ function attachCardEvents(card) {
   const target = card.querySelector(".target-size");
   const after = card.querySelector(".after-size");
 
-  amount.addEventListener("input", () => {
+  amount.addEventListener("input", calc);
+  target.addEventListener("input", calc);
+
+  function calc() {
     const t = parseFloat(target.value || 0);
     const a = parseFloat(amount.value || 0);
     after.value = (t + a).toFixed(3);
+  }
+
+  /* 開始 */
+  card.querySelector(".start-btn").addEventListener("click", async () => {
+    const data = {
+      id: Date.now(),
+      machine: currentMachine,
+      process: card.querySelector(".process-select").value,
+      before: card.querySelector(".before-size").value,
+      target: card.querySelector(".target-size").value,
+      amount: card.querySelector(".amount").value,
+      after: card.querySelector(".after-size").value,
+      startTime: new Date().toISOString()
+    };
+
+    await saveStart(data);
   });
 
-  target.addEventListener("input", () => {
-    const t = parseFloat(target.value || 0);
-    const a = parseFloat(amount.value || 0);
-    after.value = (t + a).toFixed(3);
+  /* 終了 */
+  card.querySelector(".end-btn").addEventListener("click", async () => {
+    await finishProcess(card.dataset.index);
   });
 }
 
@@ -102,7 +177,7 @@ function addCard() {
 }
 
 /* =========================
-   横スワイプ制御
+   スクロール
 ========================= */
 function scrollToCard(index) {
   const width = cardContainer.clientWidth;
@@ -113,7 +188,7 @@ function scrollToCard(index) {
 }
 
 /* =========================
-   設備変更処理
+   設備変更
 ========================= */
 machineInput.addEventListener("change", () => {
   const newMachine = machineInput.value;
@@ -128,45 +203,34 @@ machineInput.addEventListener("change", () => {
   modal.classList.remove("hidden");
 });
 
-/* キャンセル */
 cancelBtn.addEventListener("click", () => {
   machineInput.value = currentMachine;
   tempMachine = null;
   modal.classList.add("hidden");
 });
 
-/* 変更確定 */
 confirmBtn.addEventListener("click", () => {
   currentMachine = tempMachine;
   modal.classList.add("hidden");
 
-  // 新カードを自動追加（重要仕様）
   addCard();
-
-  updateAllCardMachines();
+  updateMachineLabel();
 });
 
-/* 全カードの表示更新（過去は変えない） */
-function updateAllCardMachines() {
-  const lastCard = cards[cards.length - 1];
-  if (!lastCard) return;
+function updateMachineLabel() {
+  const last = cards[cards.length - 1];
+  if (!last) return;
 
-  const machineLabel = lastCard.querySelector(".card-machine");
-  machineLabel.textContent = currentMachine;
+  last.querySelector(".card-machine").textContent = currentMachine;
 }
 
 /* =========================
-   ＋追加ボタン
+   UI操作
 ========================= */
-addCardBtn.addEventListener("click", () => {
-  addCard();
-});
+addCardBtn.addEventListener("click", addCard);
 
-/* =========================
-   一覧ジャンプ（簡易）
-========================= */
 listBtn.addEventListener("click", () => {
-  const target = prompt("カード番号へ移動（0〜）");
+  const target = prompt("カード番号");
   const index = parseInt(target);
 
   if (isNaN(index)) return;
@@ -176,11 +240,11 @@ listBtn.addEventListener("click", () => {
 });
 
 /* =========================
-   初期起動
+   初期化
 ========================= */
 function init() {
   machineInput.value = currentMachine;
-  addCard(); // 初期カード1枚
+  addCard();
 }
 
 init();
