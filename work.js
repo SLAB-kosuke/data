@@ -13,10 +13,9 @@ let tempMachine = null;
 const cardContainer = document.getElementById("cardContainer");
 const addCardBtn = document.getElementById("addCardBtn");
 const listBtn = document.getElementById("listBtn");
+const csvBtn = document.getElementById("csvBtn");
 
 const machineInput = document.getElementById("machine");
-const operatorInput = document.getElementById("operator");
-const jigInput = document.getElementById("jig");
 
 const modal = document.getElementById("machineModal");
 const modalCurrent = document.getElementById("modalCurrentMachine");
@@ -25,7 +24,7 @@ const cancelBtn = document.getElementById("cancelMachineChange");
 const confirmBtn = document.getElementById("confirmMachineChange");
 
 /* =========================
-   Firestore ID
+   ID
 ========================= */
 function getDocId() {
   const partNo = document.getElementById("partNo").textContent || "UNKNOWN";
@@ -43,10 +42,10 @@ async function saveAll() {
   const data = {
     partNo: document.getElementById("partNo").textContent,
     serial: document.getElementById("serial").textContent,
-    operator: operatorInput.value,
+    operator: document.getElementById("operator").value,
     machine: currentMachine,
-    jig: jigInput.value,
-    processes: cards.map((card) => ({
+    jig: document.getElementById("jig").value,
+    processes: cards.map(card => ({
       process: card.querySelector(".process-select").value,
       before: card.querySelector(".before-size").value,
       target: card.querySelector(".target-size").value,
@@ -59,9 +58,9 @@ async function saveAll() {
 }
 
 /* =========================
-   カード生成
+   カード
 ========================= */
-function createCard(index) {
+function createCard() {
   const card = document.createElement("section");
   card.className = "card";
 
@@ -112,7 +111,7 @@ function createCard(index) {
 }
 
 /* =========================
-   カードイベント
+   イベント
 ========================= */
 function attachEvents(card) {
   const amount = card.querySelector(".amount");
@@ -130,31 +129,30 @@ function attachEvents(card) {
 
   card.querySelector(".start-btn").addEventListener("click", async () => {
     await saveAll();
-    alert("保存しました（開始）");
+    alert("保存（開始）");
   });
 
   card.querySelector(".end-btn").addEventListener("click", async () => {
     await saveAll();
-    alert("更新しました（終了）");
+    alert("保存（終了）");
   });
 }
 
 /* =========================
-   カード追加
+   追加
 ========================= */
 function addCard() {
-  const card = createCard(cards.length);
+  const card = createCard();
   cards.push(card);
   cardContainer.appendChild(card);
-  scroll(cards.length - 1);
 }
 
 /* =========================
    スクロール
 ========================= */
-function scroll(index) {
+function scroll(i) {
   const w = cardContainer.clientWidth;
-  cardContainer.scrollTo({ left: w * index, behavior: "smooth" });
+  cardContainer.scrollTo({ left: w * i, behavior: "smooth" });
 }
 
 /* =========================
@@ -184,55 +182,66 @@ confirmBtn.addEventListener("click", () => {
   modal.classList.add("hidden");
 
   addCard();
-  updateLabels();
+  updateMachine();
 });
 
-function updateLabels() {
+function updateMachine() {
   const last = cards[cards.length - 1];
   if (!last) return;
   last.querySelector(".card-machine").textContent = currentMachine;
 }
 
 /* =========================
-   一覧・追加
+   CSV出力（ここが今回追加）
+========================= */
+csvBtn.addEventListener("click", () => {
+  let csv = [];
+
+  csv.push("図番,シリアル,設備,加工名,現寸法,狙い値,加工量,加工後寸法");
+
+  const partNo = document.getElementById("partNo").textContent;
+  const serial = document.getElementById("serial").textContent;
+
+  cards.forEach(card => {
+    csv.push([
+      partNo,
+      serial,
+      currentMachine,
+      card.querySelector(".process-select").value,
+      card.querySelector(".before-size").value,
+      card.querySelector(".target-size").value,
+      card.querySelector(".amount").value,
+      card.querySelector(".after-size").value
+    ].join(","));
+  });
+
+  const blob = new Blob([csv.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${partNo}_${serial}_MPL.csv`;
+  a.click();
+
+  URL.revokeObjectURL(url);
+});
+
+/* =========================
+   UI
 ========================= */
 addCardBtn.addEventListener("click", addCard);
 
 listBtn.addEventListener("click", () => {
   const i = parseInt(prompt("カード番号"));
-  if (isNaN(i)) return;
-  if (i < 0 || i >= cards.length) return;
-  scroll(i);
+  if (!isNaN(i)) scroll(i);
 });
 
 /* =========================
-   復元（ここが今回追加本体）
+   初期化
 ========================= */
-async function init() {
+function init() {
   machineInput.value = currentMachine;
-
-  const id = getDocId();
-  const ref = doc(db, "molds", id);
-  const snap = await getDoc(ref);
-
-  cards = [];
-  cardContainer.innerHTML = "";
-
-  if (snap.exists()) {
-    const data = snap.data();
-
-    document.getElementById("operator").value = data.operator || "";
-    document.getElementById("machine").value = data.machine || "";
-    document.getElementById("jig").value = data.jig || "";
-
-    currentMachine = data.machine || "M-1";
-
-    (data.processes || []).forEach(() => {
-      addCard();
-    });
-  } else {
-    addCard();
-  }
+  addCard();
 }
 
 init();
