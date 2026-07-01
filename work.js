@@ -15,6 +15,8 @@ const addCardBtn = document.getElementById("addCardBtn");
 const listBtn = document.getElementById("listBtn");
 
 const machineInput = document.getElementById("machine");
+const operatorInput = document.getElementById("operator");
+const jigInput = document.getElementById("jig");
 
 const modal = document.getElementById("machineModal");
 const modalCurrent = document.getElementById("modalCurrentMachine");
@@ -32,7 +34,7 @@ function getDocId() {
 }
 
 /* =========================
-   Firestore 保存（上書き型）
+   保存
 ========================= */
 async function saveAll() {
   const id = getDocId();
@@ -41,20 +43,16 @@ async function saveAll() {
   const data = {
     partNo: document.getElementById("partNo").textContent,
     serial: document.getElementById("serial").textContent,
-    operator: document.getElementById("operator").value,
+    operator: operatorInput.value,
     machine: currentMachine,
-    jig: document.getElementById("jig").value,
-    processes: cards.map((card, i) => {
-      return {
-        index: i,
-        machine: currentMachine,
-        process: card.querySelector(".process-select").value,
-        before: card.querySelector(".before-size").value,
-        target: card.querySelector(".target-size").value,
-        amount: card.querySelector(".amount").value,
-        after: card.querySelector(".after-size").value
-      };
-    })
+    jig: jigInput.value,
+    processes: cards.map((card) => ({
+      process: card.querySelector(".process-select").value,
+      before: card.querySelector(".before-size").value,
+      target: card.querySelector(".target-size").value,
+      amount: card.querySelector(".amount").value,
+      after: card.querySelector(".after-size").value
+    }))
   };
 
   await setDoc(ref, data);
@@ -63,10 +61,9 @@ async function saveAll() {
 /* =========================
    カード生成
 ========================= */
-function createCard(index, data = {}) {
+function createCard(index) {
   const card = document.createElement("section");
   card.className = "card";
-  card.dataset.index = index;
 
   card.innerHTML = `
     <div class="card-header">
@@ -111,23 +108,22 @@ function createCard(index, data = {}) {
   `;
 
   attachEvents(card);
-
   return card;
 }
 
 /* =========================
-   イベント
+   カードイベント
 ========================= */
 function attachEvents(card) {
   const amount = card.querySelector(".amount");
   const target = card.querySelector(".target-size");
   const after = card.querySelector(".after-size");
 
-  function calc() {
+  const calc = () => {
     const t = parseFloat(target.value || 0);
     const a = parseFloat(amount.value || 0);
     after.value = (t + a).toFixed(3);
-  }
+  };
 
   amount.addEventListener("input", calc);
   target.addEventListener("input", calc);
@@ -198,11 +194,11 @@ function updateLabels() {
 }
 
 /* =========================
-   UI操作
+   一覧・追加
 ========================= */
-document.getElementById("addCardBtn").addEventListener("click", addCard);
+addCardBtn.addEventListener("click", addCard);
 
-document.getElementById("listBtn").addEventListener("click", () => {
+listBtn.addEventListener("click", () => {
   const i = parseInt(prompt("カード番号"));
   if (isNaN(i)) return;
   if (i < 0 || i >= cards.length) return;
@@ -210,11 +206,33 @@ document.getElementById("listBtn").addEventListener("click", () => {
 });
 
 /* =========================
-   初期化
+   復元（ここが今回追加本体）
 ========================= */
-function init() {
+async function init() {
   machineInput.value = currentMachine;
-  addCard();
+
+  const id = getDocId();
+  const ref = doc(db, "molds", id);
+  const snap = await getDoc(ref);
+
+  cards = [];
+  cardContainer.innerHTML = "";
+
+  if (snap.exists()) {
+    const data = snap.data();
+
+    document.getElementById("operator").value = data.operator || "";
+    document.getElementById("machine").value = data.machine || "";
+    document.getElementById("jig").value = data.jig || "";
+
+    currentMachine = data.machine || "M-1";
+
+    (data.processes || []).forEach(() => {
+      addCard();
+    });
+  } else {
+    addCard();
+  }
 }
 
 init();
