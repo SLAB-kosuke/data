@@ -239,8 +239,33 @@ listBtn.addEventListener("click", () => {
 /* =========================
    初期化
 ========================= */
-function init() {
+async function init() {
   machineInput.value = currentMachine;
+
+  const restore = sessionStorage.getItem("mpl_restore");
+
+  if (restore) {
+    const data = JSON.parse(restore);
+    sessionStorage.removeItem("mpl_restore");
+
+    document.getElementById("partNo").textContent = data.partNo;
+    document.getElementById("serial").textContent = data.serial;
+    document.getElementById("operator").value = data.operator || "";
+    document.getElementById("machine").value = data.machine || "";
+    document.getElementById("jig").value = data.jig || "";
+
+    currentMachine = data.machine;
+
+    cards = [];
+    cardContainer.innerHTML = "";
+
+    (data.processes || []).forEach(() => {
+      addCard();
+    });
+
+    return;
+  }
+
   addCard();
 }
 
