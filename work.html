@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>MPL 加工画面</title>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <!-- ヘッダー -->
+  <header class="top-bar">
+    <div class="top-info">
+      <div>図番：<span id="partNo">-</span></div>
+      <div>シリアル：<span id="serial">-</span></div>
+    </div>
+
+    <div class="top-inputs">
+      <input id="operator" placeholder="加工者" />
+      <input id="machine" placeholder="設備（M-1など）" />
+      <input id="jig" placeholder="治具" />
+    </div>
+  </header>
+
+  <!-- 設備変更ダイアログ -->
+  <div id="machineModal" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-title">設備を変更しますか？</div>
+
+      <div class="modal-body">
+        <div>現在：<span id="modalCurrentMachine"></span></div>
+        <div>変更：<span id="modalNewMachine"></span></div>
+
+        <p class="modal-note">
+          ※以降に追加する加工履歴は変更後の設備で保存されます。
+        </p>
+      </div>
+
+      <div class="modal-actions">
+        <button id="cancelMachineChange">キャンセル</button>
+        <button id="confirmMachineChange">変更</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- カード一覧 -->
+  <main class="card-container" id="cardContainer">
+
+    <!-- カードテンプレ（JSで複製） -->
+    <section class="card active" data-index="0">
+
+      <div class="card-header">
+        <div class="card-machine">M-1</div>
+        <div class="card-process">
+          <select class="process-select">
+            <option>貫通穴</option>
+            <option>止め穴</option>
+            <option>ザグリ</option>
+            <option>補正</option>
+            <option>その他</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card-body">
+
+        <div class="row">
+          <label>現寸法</label>
+          <input type="number" class="before-size" />
+        </div>
+
+        <div class="row">
+          <label>狙い値</label>
+          <input type="number" class="target-size" />
+        </div>
+
+        <div class="row">
+          <label>加工量</label>
+          <input type="number" class="amount" />
+        </div>
+
+        <div class="row">
+          <label>加工後寸法</label>
+          <input type="number" class="after-size" disabled />
+        </div>
+
+      </div>
+
+      <div class="card-footer">
+        <button class="start-btn">開始</button>
+        <button class="end-btn">終了</button>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- 下部操作 -->
+  <footer class="bottom-bar">
+
+    <button id="addCardBtn">＋追加</button>
+    <button id="listBtn">一覧</button>
+
+  </footer>
+
+  <script src="work.js"></script>
+</body>
+</html>
